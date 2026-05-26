@@ -1,0 +1,12 @@
+﻿{
+  "name": "king-ai",
+  "version": "1.0.0",
+  "description": "King AI: integración de LLM providers y features AI-powered. /llm-integration configura Claude/OpenAI/Gemini con streaming SSE, prompt caching y cost tracking. /ai-feature-scaffold genera chatbot, RAG con pgvector/Pinecone/Weaviate, y búsqueda semántica. Incluye @ml-engineer para validación de patrones ML.",
+  "author": {
+    "name": "InformatiK-AI",
+    "email": "j.salgado2k@gmail.com"
+  },
+  "license": "MIT",
+  "requires": ["king-framework"],
+  "keywords": ["ai", "llm", "claude", "openai", "gemini", "rag", "chatbot", "semantic-search", "ml-engineer", "streaming", "cost-tracking", "king-framework", "claude-code"]
+}

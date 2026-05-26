@@ -1,0 +1,28 @@
+{
+  "name": "llm-integration-test-project",
+  "version": "1.0.0",
+  "description": "Minimal TypeScript project for testing llm-integration generated templates",
+  "scripts": {
+    "test": "jest --passWithNoTests",
+    "typecheck": "tsc --noEmit --strict"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "openai": "^4.0.0",
+    "@google/generative-ai": "^0.21.0",
+    "next": "^15.0.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "@types/jest": "^29.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": ["**/src/**/*.test.ts"]
+  }
+}
