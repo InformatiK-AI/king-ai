@@ -1,4 +1,4 @@
-﻿---
+---
 name: ai-feature-scaffold
 version: 2.0
 description: "Skill para generar features AI-powered en proyectos del usuario. Usar cuando se necesite: generar chatbot con SSE, agregar búsqueda semántica, implementar RAG con pgvector, crear endpoint de AI, scaffold de feature de inteligencia artificial."

@@ -1,4 +1,4 @@
-﻿---
+---
 name: ml-engineer
 color: purple
 description: "Agente de Machine Learning. Usar cuando se necesite: diseñar pipelines de datos, evaluar modelos de IA, validar calidad de datos de entrenamiento, optimizar inferencia, revisar integración de APIs de IA (Anthropic, OpenAI), o auditar el uso de tokens y costos."

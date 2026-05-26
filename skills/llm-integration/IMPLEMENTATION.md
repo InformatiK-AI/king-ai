@@ -1,4 +1,4 @@
-﻿# llm-integration — IMPLEMENTATION (Phases 3-4)
+# llm-integration — IMPLEMENTATION (Phases 3-4)
 
 > Sub-archivo de `SKILL.md`. Cargado via PHASE ROUTER para Phases 3 y 4.
 > NUNCA ejecutar directamente — siempre invocado desde `skills/llm-integration/SKILL.md`.

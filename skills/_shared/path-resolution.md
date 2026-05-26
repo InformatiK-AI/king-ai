@@ -1,4 +1,4 @@
-﻿# Path Resolution Convention
+# Path Resolution Convention
 
 > This file defines how to resolve plugin-internal file paths in King Framework.
 > Reference this when a skill or agent needs to Read a file from the framework.

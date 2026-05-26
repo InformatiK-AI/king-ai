@@ -1,4 +1,4 @@
-﻿# ai-feature-scaffold — GENERATION (Phases 3-4)
+# ai-feature-scaffold — GENERATION (Phases 3-4)
 
 > Sub-archivo de `SKILL.md`. Cargado via PHASE ROUTER para Phases 3 y 4.
 > NUNCA ejecutar directamente — siempre invocado desde `skills/ai-feature-scaffold/SKILL.md`.

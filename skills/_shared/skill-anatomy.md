@@ -1,4 +1,4 @@
-﻿# Skill Anatomy — Non-SDD Skill Structure Reference
+# Skill Anatomy — Non-SDD Skill Structure Reference
 
 > Read this file BEFORE creating or significantly modifying a non-SDD skill.
 > Defines the canonical structure for v2.0 skills and the semantic contracts between condition types.

@@ -1,4 +1,4 @@
-﻿---
+---
 name: llm-integration
 version: 2.0
 description: "Skill para integrar LLM providers (Claude/OpenAI/Gemini) en proyectos del usuario. Usar cuando se necesite: integrar Claude API, configurar OpenAI, agregar Gemini, setup de streaming SSE, configurar prompt caching, implementar cost tracking."
