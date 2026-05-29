@@ -219,13 +219,27 @@ src/db/migrations/
 
 ```typescript
 interface LLMProvider {
-  complete(request: CompletionRequest): Promise<CompletionResponse>;
-  stream(request: CompletionRequest): AsyncIterable<StreamChunk>;
+  complete(messages: Message[], options?: CompletionOptions): Promise<CompletionResult>;
+  stream(messages: Message[], options?: CompletionOptions): AsyncIterable<string>;
   getCapabilities(): ProviderCapabilities;
+  getSessionUsage(): TokenUsage;
+  calculateCostUSD(usage: TokenUsage): number;
 }
 ```
 
 Todos los clientes generados deben implementar esta interfaz. El archivo de tipos compartidos (`types.ts`) se incluye como parte de los templates compartidos.
+
+### Rol de sse-handler.ts (adaptador de transporte de salida)
+
+`sse-handler.ts` es un **adaptador de transporte de salida**: consume el stream que produce el
+puerto de dominio (`askStream(req): AskStreamHandle / AsyncIterable<string>` de
+`/ai-feature-scaffold`) y lo serializa como Server-Sent Events para canales que mantienen
+una conexión abierta (web, cli).
+
+Los canales **no-SSE** (p. ej. WhatsApp) **NO** usan este adaptador: consumen `ask(req): Promise<AgentResponse>`
+(no-stream) y responden de forma asíncrona con el `answer` completo, respetando el `channelLimit`
+del canal (`whatsapp = 4096`). El streaming SSE y la respuesta no-stream son dos adaptadores de
+salida distintos sobre el mismo puerto de dominio (`agent/ask.ts` de `/ai-feature-scaffold`).
 
 ### Templates esperados
 

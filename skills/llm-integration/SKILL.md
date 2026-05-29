@@ -127,20 +127,26 @@ Antes de terminar, verificar:
 
 ### ADR-004: Adapter Pattern
 
-Todos los clientes generados implementan la interfaz `LLMProvider`:
+Todos los clientes generados implementan la interfaz `LLMProvider` (ver `templates/shared/llm-provider.ts`):
 
 ```typescript
 interface LLMProvider {
-  complete(request: CompletionRequest): Promise<CompletionResponse>;
-  stream(request: CompletionRequest): AsyncIterable<StreamChunk>;
+  complete(messages: Message[], options?: CompletionOptions): Promise<CompletionResult>;
+  stream(messages: Message[], options?: CompletionOptions): AsyncIterable<string>;
   getCapabilities(): ProviderCapabilities;
+  getSessionUsage(): TokenUsage;
+  calculateCostUSD(usage: TokenUsage): number;
 }
 ```
+
+`GenerateFn` (el puerto de generación que consume el dominio de `/ai-feature-scaffold`) se
+implementa sobre `LLMProvider.stream()` para streaming token-a-token (más `getSessionUsage()`
+para el `usage`), o sobre el SDK del provider directamente.
 
 ### Knowledge Injection
 
 | Archivo | Propósito | Requerido | Fuente |
 |---------|-----------|-----------|--------|
 | `knowledge/_inject/llm-integration-essentials.md` | LLM providers, streaming, cost tracking | No (se creará) | framework |
-| `knowledge/_inject/testing-essentials.md` | Test patterns para código generado | No | framework |
-| `knowledge/_inject/resilience-patterns.md` | Retry, circuit breaker para APIs externas | No | framework |
+| `knowledge/_inject/testing-essentials.md` | Test patterns para código generado | No (presente) | framework |
+| `knowledge/_inject/resilience-patterns.md` | Retry, circuit breaker para APIs externas | No (presente) | framework |

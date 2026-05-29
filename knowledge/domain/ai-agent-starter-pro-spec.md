@@ -214,10 +214,17 @@ directorios marcados son contractuales).
 
 ```
 ai-agent-starter-pro/
-├── app/                        # Next.js 15 App Router
-│   ├── api/chat/route.ts       # endpoint streaming (Vercel AI SDK)
+├── app/                        # Next.js 15 App Router (adaptadores delgados)
+│   ├── api/chat/route.ts       # adaptador web → askStream() del dominio
+│   ├── api/whatsapp/route.ts   # adaptador WhatsApp (firma + dedup) → ask()
 │   └── page.tsx                # UI mínima de demo
 ├── lib/
+│   ├── agent/                  # PUERTO DE DOMINIO (hexagonal, agnóstico al transporte)
+│   │   ├── ask.ts              # ask() / askStream(); orquesta safety→retrieve→gen→moderación
+│   │   ├── types.ts            # contrato canónico: Channel, AgentRequest, AgentResponse, GenerateFn
+│   │   ├── resilience.ts       # withTimeout / withRetry (backoff + jitter)
+│   │   ├── providers/ai-sdk.ts # adaptador de salida: GenerateFn sobre Vercel AI SDK (ADR-004)
+│   │   └── whatsapp/           # helpers de canal: verify (firma), dedup (idempotencia), parse, send
 │   ├── rag/                    # ingest, chunking, retrieve (pgvector)
 │   ├── safety/                 # pre/post guards (pii, jailbreak)
 │   ├── cost/                   # cost gate + circuit breaker
@@ -240,44 +247,166 @@ ai-agent-starter-pro/
 
 ---
 
-## Ejemplo: endpoint con safety + RAG + cost gate
+## ADR-005: Arquitectura hexagonal + multicanal
 
-Boceto de cómo encajan las capas en un route handler (ilustrativo, no normativo más
-allá del orden de las guardas).
+> **Estado**: Aceptado. **Refleja** el standalone YA VALIDADO en `lib/agent/*`
+> (`ask.ts`, `types.ts`, `resilience.ts`, `providers/ai-sdk.ts`, `whatsapp/*`).
+> Esta sección no propone un diseño nuevo: documenta el que ya pasó los gates.
+
+### Contexto
+
+Un agente productivo no vive solo detrás de un `<input>` web. Tarde o temprano
+entran WhatsApp, Telegram, Slack o un CLI. Si la orquestación (safety → retrieve →
+generación → moderación) se escribe DENTRO del route handler de Next, cada canal
+nuevo obliga a duplicar — y a divergir — esa lógica. El resultado es que el "cerebro"
+del agente se fragmenta por transporte y la robustez (timeout, retry, degradación)
+queda inconsistente entre canales.
+
+### Decisión
+
+El **dominio del agente** vive en `lib/agent/` y es **agnóstico al transporte**: no
+importa Next, HTTP ni el SDK del proveedor. Expone un único puerto:
+
+```ts
+// lib/agent/index.ts — fachada del dominio
+ask(input: InboundMessage, overrides?: Partial<AskDeps>): Promise<AgentReply>
+askStream(input: InboundMessage, overrides?: Partial<AskDeps>): Promise<AskStreamHandle>
+```
+
+- `ask()` — **modo completo** (WhatsApp / Telegram / Slack / CLI / eval): genera la
+  respuesta entera, con timeout + retry sobre toda la generación, y **modera ANTES**
+  de entregar. Canal seguro por construcción.
+- `askStream()` — **modo streaming** (web): emite deltas en vivo (`textStream`) y
+  resuelve la `reply` completa (usage, latency, sources, moderación final) al cerrar
+  el stream. El retry NO aplica una vez que ya se emiten deltas al usuario.
+
+Los **route handlers son adaptadores delgados**: traducen el payload nativo del canal
+a `InboundMessage`, llaman al puerto, y traducen `AgentReply`/`textStream` de vuelta a
+la respuesta del canal. No contienen lógica de negocio.
+
+- `app/api/chat/route.ts` — adaptador de ENTRADA web sobre `askStream()`.
+- `app/api/whatsapp/route.ts` — adaptador de ENTRADA WhatsApp (webhook Meta) sobre
+  `ask()`; añade firma → parse → ack inmediato → proceso async + dedup, pero reutiliza
+  el **mismo cerebro**. Es el ejemplo de referencia para sumar Telegram/Slack/CLI.
+
+El dominio recibe sus dependencias por **inyección** (`AskDeps`): `retrieve`,
+`generate`, `guardInput`, `guardOutput`, `withGeneration` (cost gate + observability)
+y `resilience`. Los defaults cablean el wiring real; los tests pasan mocks/identidad.
+
+### Contrato canónico (`lib/agent/types.ts`)
+
+```ts
+export type Channel = "web" | "whatsapp" | "telegram" | "slack" | "cli";
+
+// Límite de longitud de respuesta por canal (caracteres). El dominio recorta antes de entregar.
+export const channelLimit: Record<Channel, number> = {
+  web: Number.POSITIVE_INFINITY,
+  cli: Number.POSITIVE_INFINITY,
+  whatsapp: 4096,
+  telegram: 4096,
+  slack: 3000,
+};
+
+// Mensaje entrante normalizado. Cada adaptador traduce su payload nativo a esta forma.
+export interface AgentRequest {
+  channel: Channel;
+  messageId: string;          // ID estable del canal → clave de idempotencia
+  from: string;               // remitente (wa_id / sessionId)
+  text: string;
+  history?: { role: "user" | "assistant"; content: string }[];
+  raw?: Record<string, unknown>;  // metadatos crudos; el dominio NO los usa
+}
+
+// Respuesta agnóstica al transporte. Cada adaptador la traduce a su canal.
+export interface AgentResponse {
+  answer: string;
+  usage?: TokenUsage;
+  latencyMs: number;
+  degraded: boolean;          // true si se respondió sin contexto RAG (degradación graceful)
+  blocked?: { reason: string };  // presente solo si la moderación de salida bloqueó
+}
+
+// Puerto de salida de generación. El dominio depende de esta fn, nunca del SDK concreto.
+export type GenerateFn = (params: {
+  system: string; prompt: string; model: string; signal?: AbortSignal;
+}) => Promise<{ stream: AsyncIterable<string>; usage: Promise<TokenUsage | undefined> }>;
+```
+
+> **ADR-004 (LLMProvider)** — `GenerateFn` es el puerto de salida de generación. Se
+> implementa sobre el cliente generado por `/llm-integration` (que implementa
+> `LLMProvider`: `complete()` / `stream()`) o, como en el standalone, directamente
+> sobre el SDK (`providers/ai-sdk.ts` mapea `streamText` de Vercel AI SDK a
+> `GenerateFn`). Cambiar de proveedor = cambiar ese único adaptador.
+
+### Consecuencias
+
+- Un canal nuevo = un adaptador nuevo, **cero** cambios en el dominio.
+- La robustez esencial (timeout, retry, degradación, firma, idempotencia, límite por
+  canal) vive **en el dominio**, no en cada handler → consistente entre transportes.
+- Testabilidad: el dominio se prueba inyectando deps sin levantar HTTP ni proveedor.
+
+---
+
+## Ejemplo: endpoint de chat (adaptador delgado sobre `askStream`)
+
+El route handler **no** llama `streamText` directo: delega en el puerto de dominio
+`askStream()`. Toda la orquestación (safety → RAG → generación + cost gate +
+observability → moderación) vive en `lib/agent/ask.ts`. El handler solo traduce
+HTTP ↔ contrato canónico.
 
 ```typescript
 // app/api/chat/route.ts
-import { streamText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { guardInput, guardOutput } from "@/lib/safety";
-import { retrieve } from "@/lib/rag";
-import { withCostGate } from "@/lib/cost";
-import { withObservability } from "@/lib/observability";
+// Server-side only
+// Template generado por /ai-feature-scaffold — adaptar imports según tu stack
+import { randomUUID } from "node:crypto";
+import { askStream } from "@/lib/agent";
+import { SafetyError } from "@/lib/safety";
 
-export async function POST(req: Request) {
-  const { message } = await req.json();
+// pg + embeddings locales requieren runtime Node (no edge).
+export const runtime = "nodejs";
 
-  // 1. Safety PRE: pii redaction + jailbreak block (antes de tocar el modelo)
-  const safeInput = await guardInput(message); // pii_leak_rate == 0
+export async function POST(req: Request): Promise<Response> {
+  let message: string;
+  try {
+    const body = (await req.json()) as { message?: unknown };
+    message = String(body.message ?? "");
+  } catch {
+    return Response.json({ error: "invalid_body" }, { status: 400 });
+  }
+  if (!message.trim()) {
+    return Response.json({ error: "empty_message" }, { status: 400 });
+  }
 
-  // 2. RAG: retrieve sobre pgvector
-  const context = await retrieve(safeInput, { topK: 5 });
+  // Traducción HTTP → contrato canónico (AgentRequest). Sin lógica de negocio aquí.
+  let handle;
+  try {
+    handle = await askStream({
+      channel: "web",
+      messageId: randomUUID(),
+      from: "web",
+      text: message,
+    });
+  } catch (error) {
+    if (error instanceof SafetyError) {
+      return Response.json({ error: error.reason }, { status: 403 });
+    }
+    throw error;
+  }
 
-  // 3. Generación con cost gate (circuit breaker → fallback Haiku) + traza
-  const result = await withObservability(() =>
-    withCostGate(() =>
-      streamText({
-        model: anthropic("claude-sonnet"),
-        system: context.systemPrompt, // versionado en prompts/
-        prompt: safeInput,
-      }),
-    ),
-  );
+  // La reply completa (usage, degraded, moderación final) se resuelve al drenar el
+  // stream; el cliente web solo consume texto plano, así que la observamos de fondo.
+  void handle.reply.catch(() => undefined);
 
-  // 4. Safety POST: content moderation sobre la salida
-  return guardOutput(result).toDataStreamResponse();
+  return new Response(toReadableStream(handle.textStream), {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
 }
 ```
+
+> El adaptador WhatsApp (`app/api/whatsapp/route.ts`) sigue el mismo patrón sobre
+> `ask()`: verifica la firma `X-Hub-Signature-256` (HMAC timing-safe), hace ack
+> inmediato (< 30 s), y procesa async con claim de idempotencia
+> (`INSERT ... ON CONFLICT DO NOTHING`) antes de invocar el mismo dominio.
 
 ---
 
@@ -300,8 +429,45 @@ ai:
     pii_leak_rate: 0
   observability:
     tracing_coverage_pct: 100
+  channel:
+    webhook_signature_verified: true   # todo webhook entrante verifica firma (HMAC timing-safe)
+    idempotency_coverage_pct: 100      # todo mensaje se de-duplica por messageId antes de procesar
+  resilience:
+    request_timeout_ms: 20000          # deadline por defecto de generación (DEFAULT_RESILIENCE.llmTimeoutMs)
+    timeout_coverage_pct: 100          # retrieve y generate corren siempre con deadline
+    retry_backoff: required            # backoff exponencial + full jitter en modo completo (ask)
+    graceful_degradation: required     # fallo/timeout de retrieve → responder sin contexto, degraded: true
   enforcement: block
 ```
+
+### Robustez esencial (en CÓDIGO) vs. caminos de evolución (DOCUMENTADOS)
+
+La robustez **esencial** del agente NO es opcional ni un gate ceremonial: vive en el
+código del dominio y los adaptadores, y los gates `ai.channel` / `ai.resilience` la
+materializan.
+
+- **timeout** — `withTimeout()` envuelve `retrieve` y `generate` (`resilience.ts`).
+- **retry** — `withRetry()` con backoff exponencial + full jitter en modo completo
+  (`ask`); corta ante errores no-reintentables (safety, 4xx, abort).
+- **degradación graceful** — si `retrieve` falla/expira, se responde con el
+  `fallbackSystemPrompt` y `degraded: true`, sin romper la conversación.
+- **firma de webhook** — `verifySignature()` (HMAC-SHA256 timing-safe) rechaza
+  payloads no firmados por el canal.
+- **idempotencia** — `claimMessage()` reclama el `messageId` atómicamente
+  (`INSERT ... ON CONFLICT DO NOTHING`) → procesamiento exactly-once por mensaje.
+- **límite por canal** — `channelLimit` recorta la respuesta a la longitud máxima del
+  canal antes de entregarla.
+
+En cambio, las siguientes capacidades se documentan como **caminos de evolución** (no
+se implementan en el template; el dominio queda listo para enchufarlas):
+
+- **rate limiting** por remitente/IP (token bucket en edge o middleware).
+- **colas dedicadas** para el procesamiento async de webhooks (hoy: `void handle...`
+  con `ctx.waitUntil()` en serverless; evolución: cola + workers).
+- **multi-tenancy** (aislamiento de datos/cuotas por tenant).
+- **sesiones** persistentes y memoria conversacional (hoy `history?` es opcional y
+  stateless; el campo `from` ya habilita la futura clave de sesión).
+- **LLM-as-judge** para evaluación continua (complementa el golden set offline).
 
 ---
 
