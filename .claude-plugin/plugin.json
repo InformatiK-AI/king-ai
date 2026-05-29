@@ -1,12 +1,12 @@
-﻿{
+{
   "name": "king-ai",
-  "version": "1.0.0",
-  "description": "King AI: integración de LLM providers y features AI-powered. /llm-integration configura Claude/OpenAI/Gemini con streaming SSE, prompt caching y cost tracking. /ai-feature-scaffold genera chatbot, RAG con pgvector/Pinecone/Weaviate, y búsqueda semántica. Incluye @ml-engineer para validación de patrones ML.",
+  "version": "1.1.0",
+  "description": "King AI: stack AI-native completo. /llm-integration (Claude/OpenAI/Gemini, SSE, caching, cost tracking) y /ai-feature-scaffold (chatbot, RAG, búsqueda semántica). M03 AI Excellence: /rag-setup (vector DB + eval harness), /ai-safety (prompt injection, PII, OWASP LLM Top 10), /prompt-eval (golden set + LLM-as-judge en CI), /ai-cost-gate (budget + circuit breaker), /ai-observability (OTel GenAI semconv), /ai-audit-ledger (auditoría de acciones AI + patologías), /cost-report (cost attribution + FinOps) y judgment-day (review adversarial). Incluye @ml-engineer con 4 contratos bilaterales.",
   "author": {
     "name": "InformatiK-AI",
     "email": "j.salgado2k@gmail.com"
   },
   "license": "MIT",
   "requires": ["king-framework"],
-  "keywords": ["ai", "llm", "claude", "openai", "gemini", "rag", "chatbot", "semantic-search", "ml-engineer", "streaming", "cost-tracking", "king-framework", "claude-code"]
+  "keywords": ["ai", "llm", "claude", "openai", "gemini", "rag", "rag-setup", "chatbot", "semantic-search", "ml-engineer", "streaming", "cost-tracking", "ai-safety", "prompt-injection", "pii-redaction", "prompt-eval", "llm-evals", "ai-cost-gate", "circuit-breaker", "ai-observability", "otel", "genai-semconv", "ai-audit-ledger", "cost-report", "finops", "adversarial-review", "judgment-day", "king-framework", "claude-code"]
 }

@@ -1,0 +1,34 @@
+# SDD config — m03-ai-excellence
+change: m03-ai-excellence
+created: "2026-05-28T00:00:00Z"
+
+artifact_store:
+  mode: filesystem        # Engram devuelve ambiguous_project desde el entorno multi-plugin
+  location: .king/sdd/m03-ai-excellence/
+
+rules:
+  tdd:
+    strict: false         # king-ai es Markdown/YAML/bash — sin test runner convencional (los .ts del doc los GENERAN los skills en el proyecto del usuario)
+  verify:
+    quality_skills:
+      enabled: true
+      chain: ["/review"]  # /refactor y /optimize NO aplican a artefactos markdown/knowledge (igual que M02)
+
+scope:
+  module: "M03 — AI Excellence Core"
+  plugin: king-ai
+  items: [M-87, M-13, M-23, M-18, M-20, M-92, "@ml-engineer contratos"]
+  in_scope:
+    - "5 skills M-87: /rag-setup, /ai-safety, /prompt-eval, /ai-cost-gate, /ai-observability"
+    - "/ai-audit-ledger (M-13) + hook emit-span.sh"
+    - "/cost-report (M-23)"
+    - "judgment-day (M-20, modo --adversarial)"
+    - "6 knowledge files (M-18 engram + rag-patterns + ai-safety-patterns + llm-evals + nexus schema + ai-agent-starter-pro spec)"
+    - "@ml-engineer: 4 contratos bilaterales + sección AI Features del Producto + §9 actualizada"
+  out_of_scope:
+    - "impl-NEXUS-M22"          # P2 — requiere Engram sqlite-vec (dependencia externa). Solo se entrega schema + knowledge.
+    - "repo-template-M92"       # solo se entrega la SPEC del template, no el repositorio ai-agent-starter-pro
+    - "generación de código .ts en king-ai"  # los .ts son artefactos que los skills generan en el proyecto del usuario
+  source_spec: "mejora/planes-detallados/M03-ai-excellence-core.md"
+
+delivery: block-by-block-single-merge   # un worktree desde develop, apply por bloque, UN merge final a develop (decisión del usuario)

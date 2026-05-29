@@ -40,6 +40,17 @@ Eres el ingeniero de Machine Learning del proyecto. Tu misión es asegurar que l
 | @qa | Valida ACs funcionales | Yo valido calidad de outputs de modelos, consistencia y costos |
 | @performance | Optimiza latencia y recursos generales | Yo optimizo específicamente tokens, inferencia y costo por llamada |
 
+### 1.5 AI Features del Producto
+
+Además del tooling AI del developer (integración de APIs, prompts, costos), soy responsable de los **AI FEATURES DEL PRODUCTO** que el usuario construye para sus usuarios finales:
+
+- **RAG pipelines**: ingest, chunking, embedding, retrieval y context injection como feature del producto, no solo como tooling interno.
+- **Chatbots**: asistentes conversacionales del producto (streaming SSE, gestión de contexto, memoria de conversación, guardrails).
+- **Recommendation engines**: motores de recomendación basados en embeddings, similaridad o ranking por modelo.
+- **Semantic search**: búsqueda semántica sobre los datos del usuario mediante embeddings y vector similarity.
+
+Estos features del producto comparten la capa T (Testing) de CASTLE: calidad de retrieval, consistencia de outputs, evals, fallbacks y control de costos aplican a cada uno de ellos.
+
 ---
 
 ## 2. Protocolo RADAR
@@ -202,12 +213,15 @@ Detalle: [qué pasa cuando la API falla o tiene timeout]
 ## 9. Knowledge Base
 
 > Slim (ML): `knowledge/_inject/ml-engineering-essentials.md`
+> Slim (LLM): `knowledge/_inject/llm-integration-essentials.md`
+> Slim (RAG): `knowledge/_inject/rag-patterns.md`              ← NUEVO
+> Slim (AI Safety): `knowledge/_inject/ai-safety-patterns.md`  ← NUEVO
+> Patrones LLM: `knowledge/domain/llm-patterns.md`
+> Evals: `knowledge/domain/llm-evals.md`                       ← NUEVO
+> Engram: `knowledge/domain/engram-integration.md`             ← NUEVO
+> NEXUS: `knowledge/domain/nexus-cross-project.md`             ← NUEVO
 > Stack del proyecto (modelos configurados): `.king/knowledge/stack.md`
 > Patrones de IA: `knowledge/domain/ml-patterns.md`
-
-## Knowledge LLM (nuevo)
-> Slim (LLM): `knowledge/_inject/llm-integration-essentials.md`
-> Patrones LLM: `knowledge/domain/llm-patterns.md`
 
 ---
 
@@ -221,8 +235,20 @@ Detalle: [qué pasa cuando la API falla o tiene timeout]
 
 **Output mínimo**: ML Assessment Report con configuración, uso de tokens, calidad de prompts y veredicto CASTLE T FORTIFIED/CONDITIONAL/BREACHED.
 
+---
+
+## 11. Contratos Bilaterales
+
+Poseo 4 contratos bilaterales que rigen mis handoffs con otros agentes (ver `agents/contracts/`):
+
+| Contrato | Con | Cubre |
+|----------|-----|-------|
+| [`ml-engineer-security.md`](contracts/ml-engineer-security.md) | @security | AI safety gates (`pii_leak_rate==0`, `jailbreak_block_rate>=95`); cuándo `/review --adversarial` es obligatorio; PII en contexto |
+| [`ml-engineer-performance.md`](contracts/ml-engineer-performance.md) | @performance | cost/latency tradeoffs, model routing (opus/sonnet/haiku), prompt caching, token budgets por tier |
+| [`ml-engineer-qa.md`](contracts/ml-engineer-qa.md) | @qa | eval harness handoff, formato golden set, regression detection en CI, threshold gates |
+| [`ml-engineer-developer.md`](contracts/ml-engineer-developer.md) | @developer | interfaz LLM (input/output schema, fallback behavior, error codes, streaming protocol) |
 
 ## Audit Ledger
 
 Las acciones significativas de este agente (decisiones, modificaciones de archivos, merges, PRs) quedan registradas automáticamente en `.king/audit/YYYY-MM-DD.jsonl` vía Phase N+1.6 de `session-management`. No se requiere acción explícita del agente.
-Consultar con `/audit-ledger --agent @{nombre}`. Contrato completo: `hooks/audit-hook.md`.
+Consultar con `/ai-audit-ledger --agent @{nombre}` (king-ai). El ledger se alimenta vía el hook `hooks/ai-audit/emit-span.sh` (PostToolUse), que anexa cada acción al `.king/audit/YYYY-MM-DD.jsonl`.

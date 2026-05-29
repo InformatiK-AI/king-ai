@@ -1,0 +1,10 @@
+# Normalización de fin de línea — king-ai
+# Los scripts bash DEBEN usar LF: el shebang se rompe con CRLF en Linux/macOS.
+*.sh        text eol=lf
+
+# Markdown, JSON y YAML: LF para consistencia cross-plataforma del plugin.
+*.md        text eol=lf
+*.json      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.jsonl     text eol=lf
