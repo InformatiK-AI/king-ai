@@ -1,0 +1,34 @@
+change: "a7-3-ai-agent-starter-pro"
+backlog_item: "A7.3"
+started: "2026-05-29"
+persistence: openspec
+owner_plugin: king-ai
+source_of_truth: "king-ai/knowledge/domain/ai-agent-starter-pro-spec.md"
+deliverable: "repo standalone D:/King Framework/ai-agent-starter-pro"
+activation_precondition: "CUMPLIDA — M-87 skills DONE en king-ai/skills/"
+phases:
+  init: completed
+  explore: completed
+  proposal: completed
+  specs: completed
+  design: completed
+  tasks: completed
+  apply: completed
+  verify: completed
+  archive: completed
+castle_verdict: CONDITIONAL
+verification:
+  criterion_4_build: "PASS — npm run build exit 0, 0 errores TS"
+  criterion_3_safety: "PASS — jailbreak_block_rate 100% (20/20), rule-based"
+  criterion_1_demo: "PENDIENTE runtime usuario (ANTHROPIC_API_KEY + Postgres/pgvector)"
+  criterion_2_eval: "PENDIENTE runtime usuario (ANTHROPIC_API_KEY + Postgres/pgvector)"
+  npm_install: "PASS (111 paquetes)"
+  tsc: "exit 0"
+  structure: "16/16 archivos contractuales"
+  fix_registrado: "jailbreak.ts regex 90%→100% (fix del detector, no del test)"
+notes: "Verdict CONDITIONAL: 2 de 4 criterios requieren validación runtime del usuario. Embeddings locales (transformers.js) para honrar contrato 2-env-vars."
+delivery:
+  repo_git: "creado local D:/King Framework/ai-agent-starter-pro"
+  push_github: "diferido — confirmar usuario (InformatiK-AI/ai-agent-starter-pro)"
+  marketplace_register: "diferido — M14"
+last_updated: "2026-05-29"
