@@ -1,0 +1,18 @@
+name: no-bom
+on: [push, pull_request]
+jobs:
+  check-bom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject UTF-8 BOM in .json/.md
+        run: |
+          hits=$(git ls-files '*.json' '*.md' | while read -r f; do
+            head -c3 "$f" | od -An -tx1 | grep -q 'ef bb bf' && echo "$f"
+          done)
+          if [ -n "$hits" ]; then
+            echo "::error::UTF-8 BOM detectado en los siguientes archivos:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "OK: ningun .json/.md contiene BOM"
