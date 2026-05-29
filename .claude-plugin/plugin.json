@@ -7,6 +7,8 @@
     "email": "j.salgado2k@gmail.com"
   },
   "license": "MIT",
+  "homepage": "https://github.com/InformatiK-AI/king-ai",
+  "repository": "https://github.com/InformatiK-AI/king-ai",
   "requires": ["king-framework"],
   "keywords": ["ai", "llm", "claude", "openai", "gemini", "rag", "rag-setup", "chatbot", "semantic-search", "ml-engineer", "streaming", "cost-tracking", "ai-safety", "prompt-injection", "pii-redaction", "prompt-eval", "llm-evals", "ai-cost-gate", "circuit-breaker", "ai-observability", "otel", "genai-semconv", "ai-audit-ledger", "cost-report", "finops", "adversarial-review", "judgment-day", "king-framework", "claude-code"]
 }
