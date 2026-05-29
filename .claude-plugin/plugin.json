@@ -1,6 +1,6 @@
 {
   "name": "king-ai",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "King AI: stack AI-native completo. /llm-integration (Claude/OpenAI/Gemini, SSE, caching, cost tracking) y /ai-feature-scaffold (chatbot, RAG, búsqueda semántica). M03 AI Excellence: /rag-setup (vector DB + eval harness), /ai-safety (prompt injection, PII, OWASP LLM Top 10), /prompt-eval (golden set + LLM-as-judge en CI), /ai-cost-gate (budget + circuit breaker), /ai-observability (OTel GenAI semconv), /ai-audit-ledger (auditoría de acciones AI + patologías), /cost-report (cost attribution + FinOps) y judgment-day (review adversarial). Incluye @ml-engineer con 4 contratos bilaterales.",
   "author": {
     "name": "InformatiK-AI",
