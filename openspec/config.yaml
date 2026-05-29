@@ -1,0 +1,44 @@
+schema: spec-driven
+
+context: |
+  Plugin king-ai (stack AI-native del ecosistema King Framework). Este openspec rastrea cambios
+  del plugin y la generación de entregables que king-ai posee, como el template ai-agent-starter-pro.
+  El template es un repo standalone (NO un plugin): TypeScript · Next.js 15 App Router · Vercel AI SDK ·
+  Anthropic SDK · pgvector · Postgres. Fuente de verdad de su contrato: knowledge/domain/ai-agent-starter-pro-spec.md.
+
+strict_tdd: false
+
+testing:
+  test_runner:
+    framework: "vitest/npm-scripts (en el repo generado)"
+    command: "npm run build / npm run eval / npm run test:safety"
+  layers:
+    unit: { available: true, tool: "vitest" }
+    integration: { available: true, tool: "npm scripts" }
+    e2e: { available: false, tool: "requiere ANTHROPIC_API_KEY + Postgres/pgvector del usuario" }
+  note: |
+    Criterio 4 (npm run build, 0 errores TS) y la conformidad estructural son verificables sin credenciales.
+    Criterios 1-3 (demo <10s, eval golden_set_score>=0.85, jailbreak_block_rate>=95%) requieren runtime con
+    ANTHROPIC_API_KEY y Postgres+pgvector del usuario — se documentan, no se ejecutan en este ciclo.
+
+rules:
+  proposal:
+    - Include rollback plan (el repo es nuevo y aislado → revertir = borrar dir)
+    - Identify affected modules
+  specs:
+    - Use Given/When/Then + RFC 2119
+    - Los 4 criterios de aceptación de la spec son requisitos verificables
+  design:
+    - Stack FIJO y opinado (no negociable por proyecto) — documentar arquitectura de capas
+    - Reference knowledge/domain/ai-agent-starter-pro-spec.md as source of truth
+  tasks:
+    - Group by módulo del layout contractual (app/, lib/rag, lib/safety, lib/cost, lib/observability, eval/, db/)
+    - Keep tasks small
+  apply:
+    - Generar repo standalone D:/King Framework/ai-agent-starter-pro, prístino (sin openspec de King dentro)
+    - Respetar el layout contractual de la spec
+  verify:
+    - Verificar criterio 4 (build/tsc 0 errores) + lint + conformidad estructural
+    - Documentar criterios 1-3 como pendientes de runtime del usuario
+  archive:
+    - El planning vive en king-ai/openspec; el código en el repo nuevo
