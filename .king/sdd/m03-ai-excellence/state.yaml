@@ -1,0 +1,31 @@
+change: "m03-ai-excellence"
+started: "2026-05-28T00:00:00Z"
+source_of_truth: "../../../../mejora/planes-detallados/M03-ai-excellence-core.md"
+base_branch: develop
+feature_branch: feature/m03-ai-excellence
+worktree: "D:/King Framework/king-ai-m03"
+delivery: block-by-block-single-merge   # apply por bloque, UN merge final a develop
+
+phases:
+  init: completed
+  explore: completed
+  proposal: completed
+  specs: completed
+  design: completed
+  tasks: completed
+  apply: completed
+  verify: completed
+  archive: completed
+
+blocks:
+  b0_foundation: completed      # A-01..A-06 + J-05 (commit f23e762)
+  b1_core: completed            # /rag-setup + /ai-safety + /prompt-eval (review PASS_WITH_WARNINGS → fixes aplicados)
+  b2_cost_obs: completed        # /ai-cost-gate + /ai-observability (review PASS)
+  b3_audit_report: completed    # /ai-audit-ledger (+hook emit-span.sh verificado) -> /cost-report (review PASS, schema JSONL coherente)
+  b4_adversarial_contracts: completed  # judgment-day + 4 contratos (review PASS; _common/ se resuelve contra ecosistema, patrón preexistente)
+  b5_closure: completed         # plugin.json v1.1.0 + .gitattributes; A-05/A-06 completados en B0 (review PASS)
+
+artifact_store:
+  mode: filesystem
+
+last_updated: "2026-05-28T00:00:00Z"

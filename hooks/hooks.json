@@ -1,0 +1,30 @@
+{
+  "description": "King AI M-13 /ai-audit-ledger hooks — emite spans de acciones AI (NDJSON) en PostToolUse y fuerza el session summary en Stop. El ledger audita las ACCIONES DEL AI (tokens, agentes, fases, costos), no la salud del framework.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/ai-audit/emit-span.sh\"",
+            "async": true,
+            "statusMessage": "AI audit: emitiendo span de acción..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); FLAG=\"$ROOT/.king/audit/.session-summary-done\"; if [ -f \"$FLAG\" ]; then rm -f \"$FLAG\" 2>/dev/null; exit 0; fi; mkdir -p \"$ROOT/.king/audit\" 2>/dev/null; echo \"[King AI Audit] Stop: el agente NO llamó mem_session_summary. Forzando cierre de sesión con resumen de acciones y costos (include_decisions:true include_costs:true) antes de terminar.\"; printf \"%s session-summary-force: mem_session_summary no fue llamado; forzado en Stop\\n\" \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> \"$ROOT/.king/audit/session-summary-force.log\" 2>/dev/null; exit 0'",
+            "async": false,
+            "statusMessage": "AI audit: verificando session summary..."
+          }
+        ]
+      }
+    ]
+  }
+}
