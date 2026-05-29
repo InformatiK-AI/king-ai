@@ -6,13 +6,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Reject UTF-8 BOM in .json/.md
+        shell: bash
         run: |
-          hits=$(git ls-files '*.json' '*.md' | while read -r f; do
-            head -c3 "$f" | od -An -tx1 | grep -q 'ef bb bf' && echo "$f"
-          done)
-          if [ -n "$hits" ]; then
-            echo "::error::UTF-8 BOM detectado en los siguientes archivos:"
-            echo "$hits"
+          bom=0
+          while IFS= read -r f; do
+            if [ "$(head -c3 "$f" | od -An -tx1 | tr -d ' ')" = "efbbbf" ]; then
+              echo "::error file=$f::UTF-8 BOM detectado en $f"
+              bom=1
+            fi
+          done < <(git ls-files '*.json' '*.md')
+          if [ "$bom" -ne 0 ]; then
             exit 1
           fi
           echo "OK: ningun .json/.md contiene BOM"
