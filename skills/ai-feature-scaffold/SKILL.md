@@ -30,6 +30,8 @@ Skill standalone para generar features AI-powered (chatbot, semantic search, RAG
 
 - [ ] Archivos del feature generados en el proyecto del usuario
 - [ ] Test file incluido en cada feature generado
+- [ ] (chatbot / multicanal) Puerto de dominio hexagonal: `agent/types.ts`, `agent/ask.ts`, `agent/resilience.ts`
+- [ ] (chatbot / multicanal con canal WhatsApp) Adaptador de entrada: `channels/whatsapp/*` + `migrations/create_webhook_dedup.sql`
 - [ ] `.env.example` actualizado con variables del feature
 - [ ] Session document creado
 
@@ -43,10 +45,11 @@ Phase 0        Phase 1-2          Phase 3-4          Phase N+1
 
 ---
 
-## CASTLE ACTIVO: C·A·_·T·_·_
+## CASTLE ACTIVO: C·A·S·T·_·_
 
 - **C (Contracts)**: Código generado usa interfaz `LLMProvider` (ADR-004) — nunca el provider directamente
-- **A (Architecture)**: Adapter pattern — `complete()`, `stream()`, `getCapabilities()`; código server-side únicamente
+- **A (Architecture)**: Hexagonal + adaptador multicanal (ADR-005) — puerto de dominio (`agent/ask.ts`) separado de adaptadores de entrada (web SSE, webhook WhatsApp); adapter pattern `complete()`, `stream()`, `getCapabilities()`; código server-side únicamente
+- **S (Security)**: firma de webhook (HMAC timing-safe) + idempotencia + sin secretos hardcodeados
 - **T (Testing)**: Test file incluido en cada feature; security gate en Fase 4 antes de finalizar
 
 ---
@@ -122,15 +125,39 @@ Si no se detecta configuración LLM en el proyecto, el skill NO aborta. Advierte
 
 ### ADR-004: Adapter Pattern
 
-El código generado usa exclusivamente la interfaz `LLMProvider`, no el provider directamente:
+El código generado usa exclusivamente la interfaz `LLMProvider`, no el provider directamente.
+La firma coincide con el cliente real de `shared/llm-provider.ts` generado por `/llm-integration`:
 
 ```typescript
 interface LLMProvider {
-  complete(request: CompletionRequest): Promise<CompletionResponse>;
-  stream(request: CompletionRequest): AsyncIterable<StreamChunk>;
+  complete(messages: Message[], options?: CompletionOptions): Promise<CompletionResult>;
+  stream(messages: Message[], options?: CompletionOptions): AsyncIterable<string>;
   getCapabilities(): ProviderCapabilities;
+  getSessionUsage(): TokenUsage;
+  calculateCostUSD(usage: TokenUsage): number;
 }
 ```
+
+El puerto de generación del dominio (`GenerateFn`) se implementa sobre este `LLMProvider`
+(ver `templates/agent/providers/llmprovider-adapter.ts`) o sobre el SDK del proveedor directamente.
+
+### ADR-005: Arquitectura Hexagonal + Adaptador Multicanal
+
+El código generado para chatbot/multicanal separa el **puerto de dominio** del agente
+(`agent/ask.ts`, que expone `ask(req): Promise<AgentResponse>` y `askStream(req): AskStreamHandle`)
+de los **adaptadores de entrada** (web SSE, webhook WhatsApp). El dominio NO conoce el transporte:
+cada canal traduce su payload nativo a/desde el contrato canónico `AgentRequest` / `AgentResponse`
+(`agent/types.ts`), y un mismo cerebro sirve a todos los canales.
+
+El dominio recibe sus dependencias por **inyección** (`retrieve`, `generate`, `guardInput`,
+`guardOutput`, `resilience`); el puerto `GenerateFn` se implementa sobre `LLMProvider` (ADR-004) o
+sobre el SDK del proveedor directamente. La **robustez esencial** vive en el código generado, no en
+el prompt: timeout en llamadas a LLM/retrieve, retry con backoff exponencial + jitter, degradación
+graceful de RAG, verificación de firma de webhook (HMAC timing-safe), idempotencia por `messageId` y
+truncado de respuesta por canal (`channelLimit`).
+
+Refleja el agente standalone ya validado (`lib/agent/*`). Ver [GENERATION.md](GENERATION.md) →
+bloque de generación de `agent/` y `channels/whatsapp/`.
 
 ### Knowledge Injection
 
@@ -138,3 +165,4 @@ interface LLMProvider {
 |---------|-----------|-----------|--------|
 | `knowledge/_inject/llm-integration-essentials.md` | LLM providers, streaming, cost tracking | No | framework |
 | `knowledge/_inject/testing-essentials.md` | Test patterns para código generado | No | framework |
+| `knowledge/_inject/resilience-patterns.md` | Timeout, retry/backoff, degradación graceful, firma webhook, idempotencia | Sí (chatbot-multicanal) | framework |

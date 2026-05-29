@@ -1,0 +1,39 @@
+change: "hexagonal-multicanal-whatsapp"
+started: "2026-05-29"
+persistence: openspec
+owner_plugin: king-ai
+cross_repo: ["ai-agent-starter-pro", "king-ai"]
+source_of_truth: "king-ai/knowledge/domain/ai-agent-starter-pro-spec.md"
+deliverable: "patrón hexagonal multicanal en el molde de agentes (standalone + generadores)"
+phases:
+  init: completed
+  explore: completed
+  proposal: completed
+  specs: completed
+  design: completed
+  tasks: completed
+  apply: completed
+  verify: completed
+  archive: completed
+castle_verdict: CONDITIONAL
+verification:
+  standalone_typecheck: "PASS — tsc --noEmit exit 0"
+  standalone_build: "PASS — next build exit 0 (/api/chat y /api/whatsapp dinámicos)"
+  standalone_test_safety: "PASS — jailbreak_block_rate (rule-based, intacto)"
+  standalone_test_unit: "PASS — 23/23 (dominio, resiliencia, moderación, firma HMAC, parse, dedup)"
+  gates_ai_channel: "PASS por tests — firma + idempotencia verificadas"
+  gates_ai_resilience: "PASS por tests — timeout/retry/degradación verificadas"
+  demo_eval: "PENDIENTE runtime usuario (ANTHROPIC_API_KEY + Postgres/pgvector)"
+  whatsapp_e2e: "PENDIENTE runtime usuario (cuenta Meta: App Secret, Verify Token, Token, Phone Number ID)"
+  king_ai_templates: "cosechados del standalone validado (inertes; no compilan en king-ai)"
+notes: |
+  Verdict CONDITIONAL: build + suite unit + safety verdes sin credenciales; demo/eval y WhatsApp e2e
+  requieren runtime del usuario. BREAKING interno: guardOutput pasó de no-op acoplado a moderación real
+  sobre string (único consumidor era el route, ya migrado).
+delivery:
+  standalone_commit: "feature/hexagonal-multicanal (worktree), merge a develop pendiente en este ciclo"
+  king_ai_commit: "feature/hexagonal-multicanal (worktree)"
+  env_example_whatsapp: "BLOQUEADO por gate de seguridad (.env*) — vars documentadas en README; el usuario las agrega"
+  push_github: "diferido — confirmar usuario"
+  release: "diferido — ai-agent-starter-pro v1.1.0"
+last_updated: "2026-05-29"

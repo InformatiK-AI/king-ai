@@ -1,162 +1,164 @@
 // Template de test — generado por /ai-feature-scaffold
 // Requiere: jest, ts-jest (npm install -D jest ts-jest @types/jest)
+//
+// Testea el ADAPTADOR DE ENTRADA web (chat-api-route) contra un puerto MOCK del dominio:
+// createAgent con un `generate` FAKE (sin red, sin SDK). Verifica que:
+//   1. el adaptador traduce el body HTTP al AgentRequest canónico (channel="web", history, raw),
+//   2. serializa los deltas del puerto como SSE delta/done, consumible por el SSEHandler compartido.
+//
+// `next/server` se mockea (NextRequest = identidad) para poder importar la route sin runtime Next.
+// `./agent` se mockea con un puerto fake que captura el AgentRequest recibido.
 
-// Mock del cliente LLM — nunca llamar APIs reales en tests
-const mockStream = jest.fn();
-const mockComplete = jest.fn();
+import { SSEHandler } from "../../../llm-integration/templates/shared/streaming/sse-handler";
+import type { AgentRequest } from "../agent";
 
-jest.mock("@/lib/llm/claude-client", () => ({
-  ClaudeClient: jest.fn().mockImplementation(() => ({
-    stream: mockStream,
-    complete: mockComplete,
-    getSessionUsage: jest.fn().mockReturnValue({
-      inputTokens: 100,
-      outputTokens: 50,
-      cacheWriteTokens: 0,
-      cacheReadTokens: 0,
+// --- Mock de next/server: NextRequest no se usa más que como tipo + req.json() ---
+jest.mock("next/server", () => ({ NextRequest: class {} }));
+
+// --- Mock del puerto del dominio: createAgent devuelve { ask, askStream } con un generate fake ---
+const captured: { request?: AgentRequest } = {};
+let scriptedDeltas: string[] = ["Hola", " mundo", "!"];
+let askStreamThrows: Error | null = null;
+let streamErrorsMidway = false;
+
+async function* fakeTextStream(): AsyncIterable<string> {
+  for (const d of scriptedDeltas) {
+    yield d;
+    if (streamErrorsMidway && d === scriptedDeltas[0]) {
+      throw new Error("provider_down"); // detalle interno — NO debe filtrarse al cliente
+    }
+  }
+}
+
+jest.mock("../agent", () => ({
+  // El factory captura la request para aserciones de traducción y devuelve un handle fake.
+  createAgent: () => ({
+    askStream: jest.fn(async (request: AgentRequest) => {
+      captured.request = request;
+      if (askStreamThrows) throw askStreamThrows;
+      return {
+        textStream: fakeTextStream(),
+        reply: Promise.resolve({ answer: scriptedDeltas.join(""), latencyMs: 1, degraded: false }),
+      };
     }),
-    calculateCostUSD: jest.fn().mockReturnValue(0.001),
-  })),
+    ask: jest.fn(),
+  }),
 }));
 
-async function* mockAsyncGenerator(chunks: string[]) {
-  for (const chunk of chunks) yield chunk;
+// La route se importa DESPUÉS de los mocks (createAgent se invoca al cargar el módulo).
+import { POST, OPTIONS, toSSEStream } from "./chat-api-route";
+
+/** Construye un objeto compatible con NextRequest.json() para el test (sin red). */
+function fakeRequest(body: unknown): import("next/server").NextRequest {
+  return { json: async () => body } as unknown as import("next/server").NextRequest;
 }
 
-// ChatbotService: minimal wrapper that mirrors the pattern in chat-api-route.ts
-// This gives us a SUT to test instead of calling mocks directly.
-class ChatbotService {
-  private client = { stream: mockStream, getSessionUsage: jest.fn(), calculateCostUSD: jest.fn() };
-  private costTracker: { record: (u: any) => Promise<void> };
-
-  constructor(costTracker?: { record: (u: any) => Promise<void> }) {
-    this.costTracker = costTracker ?? { record: async () => {} };
-  }
-
-  async sendMessage(message: string, history: Array<{role: "user"|"assistant"; content: string}> = []) {
-    const messages = [...history, { role: "user" as const, content: message }];
-    const chunks: string[] = [];
-
-    for await (const chunk of this.client.stream(messages)) {
-      chunks.push(chunk);
-    }
-
-    const usage = this.client.getSessionUsage();
-    // fire-and-forget — must not propagate errors to caller
-    this.costTracker.record({ ...usage, latencyMs: 100 }).catch(() => {});
-
-    return { content: chunks.join(""), chunks };
-  }
+/** Consume un ReadableStream SSE con el SSEHandler compartido y devuelve deltas + texto acumulado. */
+async function drainSSE(stream: ReadableStream): Promise<{ deltas: string[]; full: string; error?: string }> {
+  const deltas: string[] = [];
+  let error: string | undefined;
+  const full = await new SSEHandler(stream, {
+    onChunk: (t) => deltas.push(t),
+    onError: (e) => {
+      error = e.message;
+    },
+  }).consume();
+  return { deltas, full, error };
 }
 
-describe("ChatbotService", () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  describe("streaming", () => {
-    it("accumulates chunks in the correct order", async () => {
-      mockStream.mockReturnValue(mockAsyncGenerator(["Hello", " world", "!"]));
-
-      const svc = new ChatbotService();
-      const result = await svc.sendMessage("hi");
-
-      expect(result.content).toBe("Hello world!");
-      expect(result.chunks).toEqual(["Hello", " world", "!"]);
-    });
-
-    it("preserves accumulated chunks when stream errors mid-way", async () => {
-      async function* failingStream() {
-        yield "Hello";
-        yield " mun";
-        throw new Error("stream_interrupted");
-      }
-      mockStream.mockReturnValue(failingStream());
-
-      const svc = new ChatbotService();
-      const received: string[] = [];
-
-      try {
-        for await (const chunk of mockStream([])) {
-          received.push(chunk);
-        }
-      } catch (err: any) {
-        expect(err.message).toContain("stream_interrupted");
-      }
-
-      expect(received).toEqual(["Hello", " mun"]);
-    });
+describe("chat-api-route (adaptador de entrada web)", () => {
+  beforeEach(() => {
+    captured.request = undefined;
+    scriptedDeltas = ["Hola", " mundo", "!"];
+    askStreamThrows = null;
+    streamErrorsMidway = false;
+    jest.clearAllMocks();
   });
 
-  describe("history management", () => {
-    it("passes full conversation history to the LLM request", async () => {
-      mockStream.mockReturnValue(mockAsyncGenerator(["response"]));
-
+  describe("traducción del request al contrato canónico", () => {
+    it("construye un AgentRequest con channel='web', text e history del body", async () => {
       const history = [
-        { role: "user" as const, content: "first message" },
-        { role: "assistant" as const, content: "first response" },
+        { role: "user" as const, content: "hola" },
+        { role: "assistant" as const, content: "qué tal" },
       ];
 
-      const svc = new ChatbotService();
-      await svc.sendMessage("second message", history);
-
-      expect(mockStream).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ role: "user", content: "first message" }),
-          expect.objectContaining({ role: "assistant", content: "first response" }),
-          expect.objectContaining({ role: "user", content: "second message" }),
-        ]),
+      const res = await POST(
+        fakeRequest({ message: "segunda pregunta", conversationId: "11111111-1111-1111-1111-111111111111", history }),
       );
+      // Drenar el stream fuerza la resolución del handle.
+      await drainSSE(res.body as ReadableStream);
+
+      expect(captured.request).toBeDefined();
+      expect(captured.request!.channel).toBe("web");
+      expect(captured.request!.from).toBe("web");
+      expect(captured.request!.text).toBe("segunda pregunta");
+      expect(captured.request!.history).toEqual(history);
+      // conversationId viaja en `raw` (metadato de canal), nunca en el contrato del dominio.
+      expect(captured.request!.raw).toMatchObject({ conversationId: "11111111-1111-1111-1111-111111111111" });
+      // messageId es un identificador generado, no vacío.
+      expect(typeof captured.request!.messageId).toBe("string");
+      expect(captured.request!.messageId.length).toBeGreaterThan(0);
+    });
+
+    it("rechaza body inválido (zod) con 400 sin invocar el puerto", async () => {
+      const res = await POST(fakeRequest({ message: "" })); // viola min(1)
+      expect(res.status).toBe(400);
+      expect(captured.request).toBeUndefined();
+    });
+
+    it("rechaza JSON inválido con 400", async () => {
+      const bad = { json: async () => { throw new Error("bad json"); } } as unknown as import("next/server").NextRequest;
+      const res = await POST(bad);
+      expect(res.status).toBe(400);
     });
   });
 
-  describe("cost tracking resilience", () => {
-    it("LLM response completes even when cost tracking fails (fire-and-forget)", async () => {
-      mockStream.mockReturnValue(mockAsyncGenerator(["Hello", " world"]));
+  describe("serialización SSE (delta / done)", () => {
+    it("emite los deltas del puerto como eventos SSE delta y cierra", async () => {
+      const res = await POST(fakeRequest({ message: "hola" }));
 
-      const failingCounter = {
-        record: jest.fn().mockRejectedValue(new Error("DB unavailable")),
-      };
+      expect(res.headers.get("Content-Type")).toContain("text/event-stream");
+      const { deltas, full, error } = await drainSSE(res.body as ReadableStream);
 
-      // Create service with a failing cost tracker
-      const svc = new ChatbotService(failingCounter);
+      expect(error).toBeUndefined();
+      expect(deltas).toEqual(["Hola", " mundo", "!"]);
+      expect(full).toBe("Hola mundo!");
+    });
 
-      // sendMessage() must resolve successfully despite the tracker failing
-      const result = await svc.sendMessage("test");
+    it("traduce un fallo a mitad del stream en un evento SSE error genérico (sin filtrar el detalle)", async () => {
+      streamErrorsMidway = true;
+      const res = await POST(fakeRequest({ message: "hola" }));
+      const { deltas, error } = await drainSSE(res.body as ReadableStream);
 
-      // Stream completed — full response received
-      expect(result.content).toBe("Hello world");
-      // Counter was invoked (fire-and-forget)
-      expect(failingCounter.record).toHaveBeenCalled();
-      // No error propagated to the caller
+      expect(deltas).toEqual(["Hola"]); // el primer delta llegó antes del fallo
+      expect(error).toBeDefined();
+      expect(error).not.toContain("provider_down"); // nunca exponer el error interno
+    });
+
+    it("si el puerto lanza al iniciar (safety PRE), responde 403 sin stream", async () => {
+      askStreamThrows = new Error("safety_blocked");
+      const res = await POST(fakeRequest({ message: "payload malicioso" }));
+      expect(res.status).toBe(403);
     });
   });
 
-  describe("AC-3: observability", () => {
-    it("logs structured metrics after stream completes", async () => {
-      mockStream.mockReturnValue(mockAsyncGenerator(["response"]));
-      const consoleSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+  describe("toSSEStream (serializador del adaptador)", () => {
+    it("envuelve deltas como {type:'delta'} y emite {type:'done'} al cerrar", async () => {
+      async function* src() {
+        yield "a";
+        yield "b";
+      }
+      const { deltas, full } = await drainSSE(toSSEStream(src()));
+      expect(deltas).toEqual(["a", "b"]);
+      expect(full).toBe("ab");
+    });
+  });
 
-      // Simulate the observability log from chatbot-sse-claude.ts
-      const usage = { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0 };
-      console.log(JSON.stringify({
-        event: "chatbot_request",
-        ...usage,
-        costUsd: 0.001,
-        latencyMs: 200,
-        ttftMs: 50,
-      }));
-
-      const logCall = consoleSpy.mock.calls.find(
-        (c) => JSON.stringify(c).includes("chatbot_request"),
-      );
-      expect(logCall).toBeDefined();
-
-      const logData = JSON.parse(logCall![0]);
-      expect(logData).toHaveProperty("event", "chatbot_request");
-      expect(logData).toHaveProperty("inputTokens");
-      expect(logData).toHaveProperty("latencyMs");
-      expect(logData).toHaveProperty("costUsd");
-
-      consoleSpy.mockRestore();
+  describe("CORS", () => {
+    it("OPTIONS responde con headers CORS y métodos permitidos", async () => {
+      const res = await OPTIONS();
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBeTruthy();
+      expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");
     });
   });
 });

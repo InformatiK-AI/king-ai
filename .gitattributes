@@ -8,3 +8,8 @@
 *.yaml      text eol=lf
 *.yml       text eol=lf
 *.jsonl     text eol=lf
+
+# Templates TypeScript/SQL: LF para que el HMAC de firma y tsc sean consistentes al clonarse.
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.sql       text eol=lf

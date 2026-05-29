@@ -110,6 +110,14 @@ ORM no detectado y usuario eligió RAG:
    **Si chatbot**:
    - Confirmar provider LLM (default: detectado del env o Claude)
    - Confirmar directorio UI destino (default: `src/components/chat/`)
+   - Preguntar canales (arquitectura hexagonal multicanal, ADR-005):
+     ```
+     ¿Qué canales va a servir el chatbot?
+       A) web — solo web con SSE streaming (default)
+       B) web+whatsapp — web SSE + webhook WhatsApp (firma HMAC + idempotencia)
+     ```
+   - Nota: el puerto de dominio (`agent/ask.ts`) es el mismo para todos los canales; cada canal
+     agrega solo su adaptador de entrada. WhatsApp requiere Postgres para la tabla de idempotencia.
 
    **Si semantic-search**:
    - Preguntar provider de embeddings:
@@ -142,6 +150,7 @@ ORM no detectado y usuario eligió RAG:
 
 4. [ ] **Registrar configuración** para Phase 3:
    - `FEATURE_TYPE`: chatbot | semantic-search | rag
+   - `CHANNELS`: web | web+whatsapp (solo chatbot; default: web)
    - `EMBEDDINGS_PROVIDER`: openai | gemini | none (solo chatbot)
    - `VECTOR_DB`: pgvector | pinecone | weaviate | none (solo si rag)
    - `ORM`: prisma | drizzle | pg-raw (solo si rag)
@@ -153,6 +162,7 @@ ORM no detectado y usuario eligió RAG:
 
 - [ ] Feature type seleccionado (chatbot / semantic-search / rag)
 - [ ] Opciones específicas del feature configuradas
+- [ ] Para chatbot: canales confirmados (`CHANNELS`: web | web+whatsapp)
 - [ ] Para RAG: vector DB y ORM confirmados
 - [ ] Directorio destino registrado en `DEST_DIR`
 
